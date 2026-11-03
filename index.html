@@ -272,7 +272,47 @@
       font-size: 0.88rem;
     }
     .muted { color: var(--text-muted); font-size: 0.85rem; }
-  </style>
+  
+    .ai-scan-laser {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2.5px;
+      background: linear-gradient(90deg, transparent 0%, rgba(56, 189, 248, 0.25) 20%, #38bdf8 50%, rgba(52, 211, 153, 0.85) 75%, transparent 100%);
+      box-shadow: 0 0 15px 3px rgba(56, 189, 248, 0.65);
+      pointer-events: none;
+      z-index: 6;
+      animation: aiLaserSweep 3.2s ease-in-out infinite alternate;
+    }
+    @keyframes aiLaserSweep {
+      0% { top: 3%; opacity: 0.25; }
+      50% { opacity: 0.95; }
+      100% { top: 96%; opacity: 0.25; }
+    }
+    .ai-pulse-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 7px #22c55e;
+      margin-right: 5px;
+      vertical-align: middle;
+      animation: aiPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes aiPulse {
+      0%, 100% { transform: scale(0.85); opacity: 0.55; }
+      50% { transform: scale(1.35); opacity: 1; box-shadow: 0 0 11px #22c55e; }
+    }
+    .detected-tag {
+      animation: tagPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    @keyframes tagPop {
+      0% { opacity: 0; transform: translateY(6px) scale(0.92); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+</style>
 </head>
 <body>
 
@@ -311,6 +351,7 @@
     </div>
 
     <div class="viewport" id="viewport">
+      <div class="ai-scan-laser"></div>
       <div class="hud-bar">
         <div class="hud-pill" id="liveObjCount">0 Objek Terdeteksi</div>
         <div class="hud-pill" id="camFacingLabel">Belakang 🔄</div>
