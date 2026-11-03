@@ -357,9 +357,10 @@
       <span id="grandTotal" style="color: #38bdf8;">Rp 0</span>
     </div>
 
-    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:10px; margin-top:12px;">
-      <button id="saveTxBtn" class="btn-primary" disabled>💾 Simpan Riwayat</button>
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-top:12px;">
+      <button id="saveTxBtn" class="btn-primary" disabled>💾 Simpan</button>
       <button id="shareBtn" class="btn-warning" disabled>📤 Salin Rekap</button>
+      <button id="openNotesBtn" class="btn-success" disabled>📲 Ke Keuangan</button>
     </div>
   </div>
 
@@ -474,6 +475,7 @@
     const grandTotalEl = document.getElementById('grandTotal');
     const saveTxBtn = document.getElementById('saveTxBtn');
     const shareBtn = document.getElementById('shareBtn');
+    const openNotesBtn = document.getElementById('openNotesBtn');
     const addManualBtn = document.getElementById('addManualBtn');
     const historyContainer = document.getElementById('historyContainer');
     const clearHistoryBtn = document.getElementById('clearHistoryBtn');
@@ -810,6 +812,7 @@
       grandTotalEl.textContent = 'Rp ' + total.toLocaleString('id-ID');
       saveTxBtn.disabled = rows.length === 0;
       shareBtn.disabled = rows.length === 0;
+      openNotesBtn.disabled = rows.length === 0;
       return total;
     }
 
@@ -867,6 +870,20 @@
       }).catch(() => {
         alert(text);
       });
+    });
+
+    openNotesBtn.addEventListener('click', () => {
+      const rows = formContainer.querySelectorAll('.item-row');
+      if (rows.length === 0) return;
+      const items = [];
+      rows.forEach(r => {
+        const name = r.querySelector('.in-name').value || 'Barang';
+        const qty = parseFloat(r.querySelector('.in-qty').value) || 1;
+        const price = parseInt(r.querySelector('.in-price').value) || 0;
+        items.push({ nama: name, qty: qty, satuan: 'pcs', harga: price });
+      });
+      const jsonStr = encodeURIComponent(JSON.stringify(items));
+      window.open('https://callmeroyy.github.io/Personal-notes/#import-items=' + jsonStr, '_blank');
     });
 
     function renderHistory() {
