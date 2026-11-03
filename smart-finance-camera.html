@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Finance Camera</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      max-width: 650px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { font-size: 0.9rem; color: #64748b; margin-bottom: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #dbeafe;
+      color: #1e40af;
+      margin-bottom: 12px;
+    }
+    .viewport {
+      position: relative;
+      width: 100%;
+      background: #0f172a;
+      border-radius: 10px;
+      overflow: hidden;
+      min-height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video, img#photoPreview {
+      width: 100%;
+      display: none;
+      max-height: 400px;
+      object-fit: contain;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .placeholder-text {
+      color: #94a3b8;
+      text-align: center;
+      padding: 20px;
+      font-size: 0.9rem;
+    }
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    button, .file-btn {
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: var(--success); color: white; grid-column: span 2; }
+    .btn-secondary { background: #e2e8f0; color: #1e293b; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    input[type="file"] { display: none; }
+
+    .item-row {
+      display: grid;
+      grid-template-columns: 2fr 70px 1.5fr 36px;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    .item-row input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .btn-del {
+      background: #fee2e2;
+      color: #dc2626;
+      padding: 8px;
+      border-radius: 6px;
+    }
+    .total-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      margin-top: 12px;
+      border-top: 2px dashed var(--border);
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .muted { color: #64748b; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <h1>📸 Smart Finance Camera</h1>
+  <p class="subtitle">Deteksi barang otomatis dengan kamera & catat ke pengeluaran</p>
+
+  <div class="card">
+    <div id="status" class="status-badge">⏳ Memuat Model AI...</div>
+
+    <div class="viewport" id="viewport">
+      <div class="placeholder-text" id="placeholder">
+        Klik <b>"Buka Kamera Live"</b> atau <b>"Ambil/Pilih Foto"</b> di bawah untuk mulai mendeteksi barang.
+      </div>
+      <video id="webcam" autoplay playsinline muted></video>
+      <img id="photoPreview" alt="Preview Foto" />
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div class="btn-group">
+      <button id="startCamBtn" class="btn-primary" disabled>🎥 Buka Kamera Live</button>
+      <label class="file-btn btn-secondary" id="uploadLabel">
+        🖼️ Ambil / Pilih Foto
+        <input type="file" id="fileInput" accept="image/*" capture="environment" disabled>
+      </label>
+      <button id="captureBtn" class="btn-success" disabled>📸 Tangkap & Input Barang (<span id="liveCount">0</span>)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3>🧾 Form Input Barang</h3>
+      <button id="addManualBtn" class="btn-secondary" style="padding:6px 10px; font-size:0.8rem;">+ Tambah Baris</button>
+    </div>
+
+    <div id="formContainer"></div>
+
+    <div class="total-bar">
+      <span>Total Pengeluaran:</span>
+      <span id="grandTotal" style="color: var(--primary);">Rp 0</span>
+    </div>
+
+    <button id="saveTxBtn" class="btn-primary" style="width:100%; margin-top:12px;" disabled>💾 Simpan ke Catatan Keuangan</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:10px;">📊 Riwayat Keuangan</h3>
+    <div id="historyContainer"></div>
+  </div>
+
+  <script>
+    // Kamus Translasi Barang & Estimasi Harga Default (Rp)
+    const DICTIONARY = {
+      'bottle': { name: 'Botol Minuman', price: 5000 },
+      'cup': { name: 'Minuman Gelas / Kopi', price: 12000 },
+      'bowl': { name: 'Makanan Mangkuk', price: 18000 },
+      'banana': { name: 'Pisang', price: 3000 },
+      'apple': { name: 'Apel', price: 5000 },
+      'sandwich': { name: 'Roti / Sandwich', price: 10000 },
+      'orange': { name: 'Jeruk', price: 4000 },
+      'broccoli': { name: 'Brokoli', price: 8000 },
+      'carrot': { name: 'Wortel', price: 5000 },
+      'donut': { name: 'Donat', price: 7000 },
+      'cake': { name: 'Kue', price: 15000 },
+      'book': { name: 'Buku', price: 25000 },
+      'cell phone': { name: 'HP / Aksesoris', price: 50000 },
+      'laptop': { name: 'Laptop', price: 150000 },
+      'mouse': { name: 'Mouse', price: 60000 },
+      'keyboard': { name: 'Keyboard', price: 120000 },
+      'backpack': { name: 'Tas Ransel', price: 100000 },
+      'handbag': { name: 'Tas', price: 85000 },
+      'scissors': { name: 'Gunting', price: 10000 },
+      'toothbrush': { name: 'Sikat Gigi', price: 8000 },
+      'clock': { name: 'Jam', price: 35000 }
+    };
+
+    const video = document.getElementById('webcam');
+    const photoPreview = document.getElementById('photoPreview');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+    const statusBadge = document.getElementById('status');
+    const placeholder = document.getElementById('placeholder');
+
+    const startCamBtn = document.getElementById('startCamBtn');
+    const fileInput = document.getElementById('fileInput');
+    const captureBtn = document.getElementById('captureBtn');
+    const liveCountSpan = document.getElementById('liveCount');
+    const formContainer = document.getElementById('formContainer');
+    const grandTotalEl = document.getElementById('grandTotal');
+    const saveTxBtn = document.getElementById('saveTxBtn');
+    const addManualBtn = document.getElementById('addManualBtn');
+    const historyContainer = document.getElementById('historyContainer');
+
+    let model = null;
+    let isLive = false;
+    let currentPredictions = [];
+    let historyList = [];
+
+    // Helper: tampilkan pesan teks (aman, tanpa innerHTML) di area form / riwayat
+    function setMessage(container, text, id) {
+      container.replaceChildren();
+      const p = document.createElement('p');
+      p.className = 'muted';
+      if (id) p.id = id;
+      p.textContent = text;
+      container.appendChild(p);
+    }
+
+    function showEmptyForm(text) {
+      setMessage(formContainer, text || 'Belum ada barang. Foto barang untuk input otomatis.', 'emptyFormText');
+    }
+
+    // 1. Load Model AI saat halaman dibuka
+    async function loadAI() {
+      try {
+        model = await cocoSsd.load();
+        statusBadge.innerText = "✅ AI Siap! Pilih Kamera Live atau Foto.";
+        statusBadge.style.background = "#dcfce7";
+        statusBadge.style.color = "#166534";
+        startCamBtn.disabled = false;
+        fileInput.disabled = false;
+      } catch (e) {
+        statusBadge.innerText = "❌ Gagal memuat AI: " + e.message;
+      }
+    }
+
+    // 2. Mode Kamera Live
+    startCamBtn.addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        });
+        video.srcObject = stream;
+        photoPreview.style.display = 'none';
+        placeholder.style.display = 'none';
+        video.style.display = 'block';
+        isLive = true;
+
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          captureBtn.disabled = false;
+          statusBadge.innerText = "🎥 Kamera Aktif - Arahkan ke barang";
+          detectLiveFrame();
+        };
+      } catch (err) {
+        alert("Kamera langsung diblokir oleh mode preview browser ini. Gunakan tombol 'Ambil / Pilih Foto' di sebelahnya atau buka file HTML langsung di Chrome!");
+      }
+    });
+
+    async function detectLiveFrame() {
+      if (!isLive || !model) return;
+      // Filter objek "person" agar orang yang memegang barang tidak ikut terhitung sebagai barang
+      const rawPreds = await model.detect(video);
+      currentPredictions = rawPreds.filter(p => p.class !== 'person');
+
+      drawBoxes(currentPredictions);
+      liveCountSpan.innerText = currentPredictions.length;
+
+      requestAnimationFrame(detectLiveFrame);
+    }
+
+    // 3. Mode Upload / Foto Kamera Langsung (Fallback)
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Matikan live stream jika sedang jalan
+      isLive = false;
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+      }
+      video.style.display = 'none';
+      placeholder.style.display = 'none';
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        photoPreview.onload = async () => {
+          canvas.width = photoPreview.naturalWidth;
+          canvas.height = photoPreview.naturalHeight;
+          const rawPreds = await model.detect(photoPreview);
+          currentPredictions = rawPreds.filter(p => p.class !== 'person');
+          drawBoxes(currentPredictions);
+          liveCountSpan.innerText = currentPredictions.length;
+          captureBtn.disabled = false;
+          // Langsung masukkan ke form otomatis (aman dipanggil berulang)
+          populateFormFromPredictions();
+        };
+        photoPreview.src = event.target.result;
+        photoPreview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+
+      // Reset agar foto yang sama bisa dipilih ulang
+      fileInput.value = '';
+    });
+
+    // Fungsi Menggambar Kotak & Nama Barang
+    function drawBoxes(predictions) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      predictions.forEach(pred => {
+        const [x, y, width, height] = pred.bbox;
+        const translated = DICTIONARY[pred.class]?.name || pred.class;
+        const label = `${translated} (${Math.round(pred.score * 100)}%)`;
+
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = Math.max(3, canvas.width / 180);
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.font = `bold ${Math.max(14, Math.round(canvas.width / 35))}px sans-serif`;
+        const textWidth = ctx.measureText(label).width;
+        const boxHeight = Math.max(24, Math.round(canvas.width / 25));
+
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(x, Math.max(0, y - boxHeight), textWidth + 12, boxHeight);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(label, x + 6, Math.max(16, y - 6));
+      });
+    }
+
+    // 4. Klik Tombol Tangkap -> Hitung Jumlah -> Masukkan ke Form
+    captureBtn.addEventListener('click', populateFormFromPredictions);
+
+    // FIX 1 & 2: idempotent. Barang dengan kelas yang sama TIDAK menambah baris baru,
+    // cukup memperbarui jumlahnya (harga yang sudah diedit pengguna tetap dipertahankan).
+    function populateFormFromPredictions() {
+      if (currentPredictions.length === 0) {
+        alert("Belum ada barang yang terdeteksi di layar! Coba dekatkan barang (seperti botol, gelas, buku, HP, buah).");
+        return;
+      }
+
+      const counts = {};
+      currentPredictions.forEach(pred => {
+        counts[pred.class] = (counts[pred.class] || 0) + 1;
+      });
+
+      Object.entries(counts).forEach(([rawClass, qty]) => {
+        const existing = Array.from(formContainer.querySelectorAll('.item-row'))
+          .find(r => r.dataset.cls === rawClass);
+
+        if (existing) {
+          existing.querySelector('.in-qty').value = qty;
+        } else {
+          const info = DICTIONARY[rawClass] || { name: rawClass, price: 10000 };
+          addItemRow(info.name, qty, info.price, rawClass);
+        }
+      });
+
+      calculateTotal();
+    }
+
+    // FIX 3: baris dibuat lewat DOM API, nilai diisi lewat .value (bukan innerHTML)
+    function addItemRow(name = '', qty = 1, price = 0, cls = '') {
+      const emptyText = document.getElementById('emptyFormText');
+      if (emptyText) emptyText.remove();
+
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      if (cls) row.dataset.cls = cls;
+
+      const inName = document.createElement('input');
+      inName.type = 'text';
+      inName.className = 'in-name';
+      inName.placeholder = 'Nama Barang';
+      inName.value = name;
+
+      const inQty = document.createElement('input');
+      inQty.type = 'number';
+      inQty.className = 'in-qty';
+      inQty.min = '1';
+      inQty.title = 'Jumlah Barang';
+      inQty.value = qty;
+
+      const inPrice = document.createElement('input');
+      inPrice.type = 'number';
+      inPrice.className = 'in-price';
+      inPrice.min = '0';
+      inPrice.step = '500';
+      inPrice.placeholder = 'Harga (Rp)';
+      inPrice.value = price;
+
+      const btnDel = document.createElement('button');
+      btnDel.className = 'btn-del';
+      btnDel.title = 'Hapus';
+      btnDel.textContent = '✕';
+
+      inQty.addEventListener('input', calculateTotal);
+      inPrice.addEventListener('input', calculateTotal);
+      btnDel.addEventListener('click', () => {
+        row.remove();
+        if (formContainer.querySelectorAll('.item-row').length === 0) showEmptyForm();
+        calculateTotal();
+      });
+
+      row.append(inName, inQty, inPrice, btnDel);
+      formContainer.appendChild(row);
+      calculateTotal();
+    }
+
+    addManualBtn.addEventListener('click', () => addItemRow('', 1, 0));
+
+    // Hitung Total Otomatis
+    function calculateTotal() {
+      const rows = formContainer.querySelectorAll('.item-row');
+      let total = 0;
+      rows.forEach(r => {
+        const q = parseFloat(r.querySelector('.in-qty').value) || 0;
+        const p = parseFloat(r.querySelector('.in-price').value) || 0;
+        total += q * p;
+      });
+      grandTotalEl.innerText = 'Rp ' + total.toLocaleString('id-ID');
+      saveTxBtn.disabled = rows.length === 0;
+      return total;
+    }
+
+    // 5. Simpan ke Riwayat Keuangan
+    saveTxBtn.addEventListener('click', () => {
+      const rows = formContainer.querySelectorAll('.item-row');
+      if (rows.length === 0) return;
+
+      const items = [];
+      let total = 0;
+      rows.forEach(r => {
+        const name = r.querySelector('.in-name').value || 'Barang';
+        const qty = parseInt(r.querySelector('.in-qty').value) || 1;
+        const price = parseInt(r.querySelector('.in-price').value) || 0;
+        total += qty * price;
+        items.push(`${qty}x ${name}`);
+      });
+
+      historyList.unshift({
+        time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        summary: items.join(', '),
+        total: total
+      });
+      renderHistory();
+
+      // Reset Form
+      showEmptyForm('Transaksi berhasil disimpan! Foto barang lagi untuk menambah.');
+      calculateTotal();
+    });
+
+    // FIX 3: riwayat dirender dengan textContent, bukan innerHTML
+    function renderHistory() {
+      historyContainer.replaceChildren();
+      if (historyList.length === 0) {
+        setMessage(historyContainer, 'Belum ada riwayat tersimpan.');
+        return;
+      }
+      historyList.forEach(tx => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+
+        const left = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = tx.summary;
+        const time = document.createElement('div');
+        time.style.cssText = 'font-size:0.75rem; color:#64748b;';
+        time.textContent = 'Jam ' + tx.time;
+        left.append(strong, time);
+
+        const right = document.createElement('div');
+        right.style.cssText = 'font-weight:700; color:var(--success);';
+        right.textContent = 'Rp ' + tx.total.toLocaleString('id-ID');
+
+        div.append(left, right);
+        historyContainer.appendChild(div);
+      });
+    }
+
+    showEmptyForm();
+    renderHistory();
+    loadAI();
+  </script>
+</body>
+</html>
