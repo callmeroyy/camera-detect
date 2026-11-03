@@ -3,66 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Finance Camera</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <title>Smart Multi-Object Camera Detector & Finance</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
   <style>
     :root {
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --success: #16a34a;
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #0f172a;
-      --border: #e2e8f0;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --success-hover: #059669;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --input-bg: #0f172a;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg);
-      color: var(--text);
+      color: var(--text-main);
       padding: 16px;
-      max-width: 650px;
+      max-width: 720px;
       margin: 0 auto;
+      line-height: 1.5;
     }
-    h1 { font-size: 1.4rem; margin-bottom: 4px; }
-    .subtitle { font-size: 0.9rem; color: #64748b; margin-bottom: 16px; }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #60a5fa 0%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
     .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
       padding: 16px;
       margin-bottom: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
     }
     .status-badge {
-      display: inline-block;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
       font-weight: 600;
-      background: #dbeafe;
-      color: #1e40af;
+      background: #1e3a8a;
+      color: #93c5fd;
       margin-bottom: 12px;
     }
     .viewport {
       position: relative;
       width: 100%;
-      background: #0f172a;
-      border-radius: 10px;
+      background: #020617;
+      border-radius: 12px;
       overflow: hidden;
-      min-height: 260px;
+      min-height: 280px;
+      max-height: 520px;
       display: flex;
       align-items: center;
       justify-content: center;
+      border: 1px solid #334155;
     }
     video, img#photoPreview {
       width: 100%;
-      display: none;
-      max-height: 400px;
+      height: 100%;
+      max-height: 500px;
       object-fit: contain;
+      display: none;
     }
-    canvas {
+    canvas#overlay {
       position: absolute;
       top: 0;
       left: 0;
@@ -70,13 +100,34 @@
       height: 100%;
       pointer-events: none;
     }
+    .hud-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .hud-pill {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
     .placeholder-text {
-      color: #94a3b8;
+      color: var(--text-muted);
       text-align: center;
-      padding: 20px;
+      padding: 24px 16px;
       font-size: 0.9rem;
     }
-    .btn-group {
+    .controls-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
@@ -85,43 +136,122 @@
     button, .file-btn {
       padding: 12px;
       border: none;
-      border-radius: 8px;
-      font-size: 0.95rem;
+      border-radius: 10px;
+      font-size: 0.92rem;
       font-weight: 600;
       cursor: pointer;
       text-align: center;
-      transition: 0.2s;
+      transition: all 0.2s ease;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 8px;
     }
     .btn-primary { background: var(--primary); color: white; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-success { background: var(--success); color: white; grid-column: span 2; }
-    .btn-secondary { background: #e2e8f0; color: #1e293b; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover { background: var(--success-hover); transform: translateY(-1px); }
+    .btn-warning { background: var(--warning); color: #0f172a; }
+    .btn-secondary { background: #334155; color: #f8fafc; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+    button:disabled, .file-btn.disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     input[type="file"] { display: none; }
 
+    /* Settings accordion */
+    .settings-panel {
+      margin-top: 12px;
+      padding: 12px;
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      font-size: 0.85rem;
+    }
+    .slider-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      margin-left: 12px;
+      accent-color: var(--primary);
+    }
+    .category-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .chip.active {
+      background: #1d4ed8;
+      border-color: #3b82f6;
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Live list chips */
+    .detected-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #334155;
+    }
+    .detected-tag {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Table & Form items */
     .item-row {
       display: grid;
-      grid-template-columns: 2fr 70px 1.5fr 36px;
+      grid-template-columns: 2fr 64px 1.4fr 36px;
       gap: 8px;
       margin-bottom: 10px;
       align-items: center;
     }
     .item-row input {
       width: 100%;
-      padding: 8px 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-size: 0.9rem;
+      padding: 9px 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: var(--text-main);
+      font-size: 0.88rem;
+    }
+    .item-row input:focus {
+      outline: none;
+      border-color: var(--primary);
     }
     .btn-del {
-      background: #fee2e2;
-      color: #dc2626;
-      padding: 8px;
-      border-radius: 6px;
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      cursor: pointer;
     }
     .total-bar {
       display: flex;
@@ -129,152 +259,321 @@
       align-items: center;
       padding-top: 12px;
       margin-top: 12px;
-      border-top: 2px dashed var(--border);
+      border-top: 1px dashed var(--card-border);
       font-weight: 700;
       font-size: 1.1rem;
     }
     .history-item {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.9rem;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.88rem;
     }
-    .muted { color: #64748b; font-size: 0.9rem; }
+    .muted { color: var(--text-muted); font-size: 0.85rem; }
   </style>
 </head>
 <body>
 
-  <h1>📸 Smart Finance Camera</h1>
-  <p class="subtitle">Deteksi barang otomatis dengan kamera & catat ke pengeluaran</p>
+  <header>
+    <h1>🔍 Smart Multi-Object Camera</h1>
+    <p class="subtitle">Deteksi otomatis berbagai barang di sekitarmu & hitung estimasi harga</p>
+  </header>
 
+  <!-- Kamera & Viewport -->
   <div class="card">
-    <div id="status" class="status-badge">⏳ Memuat Model AI...</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div id="status" class="status-badge">⏳ Memuat AI Multi-Objek...</div>
+      <button id="toggleSettingsBtn" class="btn-secondary" style="padding:4px 10px; font-size:0.75rem; border-radius:6px;">⚙️ Sensitivitas</button>
+    </div>
+
+    <!-- Panel Pengaturan Sensitivitas & Kategori Objek -->
+    <div id="settingsPanel" class="settings-panel" style="display:none;">
+      <div class="slider-row">
+        <span>Sensitivitas Ambang Deteksi:</span>
+        <strong id="confValueText">35%</strong>
+        <input type="range" id="confSlider" min="15" max="85" value="35" step="5">
+      </div>
+      <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:6px;">
+        💡 <i>Turunkan % agar benda di sekitar (kursi, botol jauh, latar belakang) lebih mudah terdeteksi.</i>
+      </div>
+      <div style="font-weight:600; margin-top:8px;">Kategori Deteksi Aktif:</div>
+      <div class="category-chips">
+        <span class="chip active" data-cat="all">Semua Objek</span>
+        <span class="chip active" data-cat="electronic">📱 Gadget & Elektronik</span>
+        <span class="chip active" data-cat="food">🍔 Makanan & Minuman</span>
+        <span class="chip active" data-cat="accessories">🎒 Tas & Aksesoris</span>
+        <span class="chip active" data-cat="furniture">🪑 Perabotan & Meja</span>
+        <span class="chip active" data-cat="kitchen">🍽️ Dapur & Makan</span>
+        <span class="chip" data-cat="person">👤 Orang / Wajah</span>
+      </div>
+    </div>
 
     <div class="viewport" id="viewport">
+      <div class="hud-bar">
+        <div class="hud-pill" id="liveObjCount">0 Objek Terdeteksi</div>
+        <div class="hud-pill" id="camFacingLabel">Belakang 🔄</div>
+      </div>
       <div class="placeholder-text" id="placeholder">
-        Klik <b>"Buka Kamera Live"</b> atau <b>"Ambil/Pilih Foto"</b> di bawah untuk mulai mendeteksi barang.
+        Klik <b>"Buka Kamera Live"</b> atau <b>"Pilih Foto"</b> untuk mulai memindai semua barang di sekitar.
       </div>
       <video id="webcam" autoplay playsinline muted></video>
       <img id="photoPreview" alt="Preview Foto" />
       <canvas id="overlay"></canvas>
     </div>
 
-    <div class="btn-group">
+    <div class="detected-summary" id="detectedTagsContainer">
+      <span class="muted" style="font-size:0.75rem;">Arahkan kamera ke meja atau ruangan untuk mendeteksi barang...</span>
+    </div>
+
+    <div class="controls-grid">
       <button id="startCamBtn" class="btn-primary" disabled>🎥 Buka Kamera Live</button>
-      <label class="file-btn btn-secondary" id="uploadLabel">
-        🖼️ Ambil / Pilih Foto
+      <label class="file-btn btn-secondary disabled" id="uploadLabel">
+        🖼️ Pilih / Ambil Foto
         <input type="file" id="fileInput" accept="image/*" capture="environment" disabled>
       </label>
-      <button id="captureBtn" class="btn-success" disabled>📸 Tangkap & Input Barang (<span id="liveCount">0</span>)</button>
+      <button id="switchCamBtn" class="btn-secondary" style="grid-column: span 1;" disabled>🔄 Ganti Kamera</button>
+      <button id="captureBtn" class="btn-success" style="grid-column: span 1;" disabled>
+        📥 Masukkan Semua (<span id="btnItemCount">0</span>)
+      </button>
     </div>
   </div>
 
+  <!-- Form Daftar Barang Terdeteksi -->
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h3>🧾 Form Input Barang</h3>
-      <button id="addManualBtn" class="btn-secondary" style="padding:6px 10px; font-size:0.8rem;">+ Tambah Baris</button>
+      <div>
+        <h3 style="font-size:1.05rem;">📋 Daftar Barang & Nilai</h3>
+        <span class="muted">Sesuaikan nama, jumlah, atau harga satuan jika perlu</span>
+      </div>
+      <button id="addManualBtn" class="btn-secondary" style="padding:6px 10px; font-size:0.8rem; border-radius:6px;">+ Tambah</button>
     </div>
 
     <div id="formContainer"></div>
 
     <div class="total-bar">
-      <span>Total Pengeluaran:</span>
-      <span id="grandTotal" style="color: var(--primary);">Rp 0</span>
+      <span>Total Estimasi:</span>
+      <span id="grandTotal" style="color: #38bdf8;">Rp 0</span>
     </div>
 
-    <button id="saveTxBtn" class="btn-primary" style="width:100%; margin-top:12px;" disabled>💾 Simpan ke Catatan Keuangan</button>
+    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:10px; margin-top:12px;">
+      <button id="saveTxBtn" class="btn-primary" disabled>💾 Simpan Riwayat</button>
+      <button id="shareBtn" class="btn-warning" disabled>📤 Salin Rekap</button>
+    </div>
   </div>
 
+  <!-- Riwayat Tersimpan -->
   <div class="card">
-    <h3 style="margin-bottom:10px;">📊 Riwayat Keuangan</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="font-size:1.05rem;">📊 Riwayat Penyimpanan</h3>
+      <button id="clearHistoryBtn" class="btn-danger" style="padding:4px 8px; font-size:0.75rem; border-radius:6px;">Hapus Semua</button>
+    </div>
     <div id="historyContainer"></div>
   </div>
 
   <script>
-    // Kamus Translasi Barang & Estimasi Harga Default (Rp)
-    const DICTIONARY = {
-      'bottle': { name: 'Botol Minuman', price: 5000 },
-      'cup': { name: 'Minuman Gelas / Kopi', price: 12000 },
-      'bowl': { name: 'Makanan Mangkuk', price: 18000 },
-      'banana': { name: 'Pisang', price: 3000 },
-      'apple': { name: 'Apel', price: 5000 },
-      'sandwich': { name: 'Roti / Sandwich', price: 10000 },
-      'orange': { name: 'Jeruk', price: 4000 },
-      'broccoli': { name: 'Brokoli', price: 8000 },
-      'carrot': { name: 'Wortel', price: 5000 },
-      'donut': { name: 'Donat', price: 7000 },
-      'cake': { name: 'Kue', price: 15000 },
-      'book': { name: 'Buku', price: 25000 },
-      'cell phone': { name: 'HP / Aksesoris', price: 50000 },
-      'laptop': { name: 'Laptop', price: 150000 },
-      'mouse': { name: 'Mouse', price: 60000 },
-      'keyboard': { name: 'Keyboard', price: 120000 },
-      'backpack': { name: 'Tas Ransel', price: 100000 },
-      'handbag': { name: 'Tas', price: 85000 },
-      'scissors': { name: 'Gunting', price: 10000 },
-      'toothbrush': { name: 'Sikat Gigi', price: 8000 },
-      'clock': { name: 'Jam', price: 35000 }
+    // ==========================================
+    // 1. KAMUS LENGKAP 80 KELAS COCO DATASET
+    // ==========================================
+    const COCO_DICTIONARY = {
+      // Elektronik & Gadget (Biru)
+      'cell phone': { name: 'HP / Smartphone', cat: 'electronic', icon: '📱', price: 2500000, color: '#38bdf8' },
+      'laptop': { name: 'Laptop', cat: 'electronic', icon: '💻', price: 7000000, color: '#38bdf8' },
+      'mouse': { name: 'Mouse Komputer', cat: 'electronic', icon: '🖱️', price: 75000, color: '#38bdf8' },
+      'keyboard': { name: 'Keyboard', cat: 'electronic', icon: '⌨️', price: 150000, color: '#38bdf8' },
+      'tv': { name: 'Monitor / TV', cat: 'electronic', icon: '🖥️', price: 1800000, color: '#38bdf8' },
+      'remote': { name: 'Remot TV / AC', cat: 'electronic', icon: '🎛️', price: 35000, color: '#38bdf8' },
+      'microwave': { name: 'Microwave', cat: 'electronic', icon: '📻', price: 900000, color: '#38bdf8' },
+      'oven': { name: 'Oven', cat: 'electronic', icon: '🍳', price: 750000, color: '#38bdf8' },
+      'toaster': { name: 'Pemanggang Roti', cat: 'electronic', icon: '🍞', price: 250000, color: '#38bdf8' },
+      'refrigerator': { name: 'Kulkas', cat: 'electronic', icon: '🧊', price: 2500000, color: '#38bdf8' },
+      'clock': { name: 'Jam Meja / Dinding', cat: 'electronic', icon: '⏰', price: 45000, color: '#38bdf8' },
+      'hair drier': { name: 'Pengering Rambut', cat: 'electronic', icon: '💨', price: 120000, color: '#38bdf8' },
+
+      // Makanan & Minuman (Hijau)
+      'bottle': { name: 'Botol Minuman', cat: 'food', icon: '🧴', price: 6000, color: '#34d399' },
+      'cup': { name: 'Cangkir / Gelas Kopi', cat: 'food', icon: '☕', price: 15000, color: '#34d399' },
+      'wine glass': { name: 'Gelas Kaca / Cangkir', cat: 'food', icon: '🍷', price: 25000, color: '#34d399' },
+      'bowl': { name: 'Mangkuk Makanan', cat: 'food', icon: '🥣', price: 20000, color: '#34d399' },
+      'banana': { name: 'Pisang', cat: 'food', icon: '🍌', price: 3000, color: '#34d399' },
+      'apple': { name: 'Apel', cat: 'food', icon: '🍎', price: 5000, color: '#34d399' },
+      'sandwich': { name: 'Roti / Sandwich', cat: 'food', icon: '🥪', price: 12000, color: '#34d399' },
+      'orange': { name: 'Jeruk', cat: 'food', icon: '🍊', price: 4000, color: '#34d399' },
+      'broccoli': { name: 'Brokoli', cat: 'food', icon: '🥦', price: 8000, color: '#34d399' },
+      'carrot': { name: 'Wortel', cat: 'food', icon: '🥕', price: 5000, color: '#34d399' },
+      'hot dog': { name: 'Hot Dog / Sosis', cat: 'food', icon: '🌭', price: 15000, color: '#34d399' },
+      'pizza': { name: 'Pizza', cat: 'food', icon: '🍕', price: 65000, color: '#34d399' },
+      'donut': { name: 'Donat', cat: 'food', icon: '🍩', price: 8000, color: '#34d399' },
+      'cake': { name: 'Kue / Tart', cat: 'food', icon: '🍰', price: 25000, color: '#34d399' },
+
+      // Dapur & Alat Makan (Teal)
+      'fork': { name: 'Garpu', cat: 'kitchen', icon: '🍴', price: 5000, color: '#2dd4bf' },
+      'knife': { name: 'Pisau', cat: 'kitchen', icon: '🔪', price: 15000, color: '#2dd4bf' },
+      'spoon': { name: 'Sendok', cat: 'kitchen', icon: '🥄', price: 5000, color: '#2dd4bf' },
+      'sink': { name: 'Wastafel', cat: 'kitchen', icon: '🚰', price: 300000, color: '#2dd4bf' },
+
+      // Tas, Aksesoris & Pribadi (Kuning / Oranye)
+      'backpack': { name: 'Tas Ransel', cat: 'accessories', icon: '🎒', price: 150000, color: '#fbbf24' },
+      'handbag': { name: 'Tas Tangan / Totebag', cat: 'accessories', icon: '👜', price: 120000, color: '#fbbf24' },
+      'umbrella': { name: 'Payung', cat: 'accessories', icon: '☂️', price: 45000, color: '#fbbf24' },
+      'tie': { name: 'Dasi', cat: 'accessories', icon: '👔', price: 35000, color: '#fbbf24' },
+      'suitcase': { name: 'Koper', cat: 'accessories', icon: '🧳', price: 450000, color: '#fbbf24' },
+      'book': { name: 'Buku / Catatan', cat: 'accessories', icon: '📚', price: 35000, color: '#fbbf24' },
+      'scissors': { name: 'Gunting', cat: 'accessories', icon: '✂️', price: 12000, color: '#fbbf24' },
+      'toothbrush': { name: 'Sikat Gigi', cat: 'accessories', icon: '🪥', price: 8000, color: '#fbbf24' },
+
+      // Perabotan & Sekitar Ruangan (Ungu)
+      'chair': { name: 'Kursi', cat: 'furniture', icon: '🪑', price: 120000, color: '#a78bfa' },
+      'couch': { name: 'Sofa', cat: 'furniture', icon: '🛋️', price: 1500000, color: '#a78bfa' },
+      'potted plant': { name: 'Tanaman Hias / Pot', cat: 'furniture', icon: '🪴', price: 35000, color: '#a78bfa' },
+      'bed': { name: 'Tempat Tidur', cat: 'furniture', icon: '🛏️', price: 2000000, color: '#a78bfa' },
+      'dining table': { name: 'Meja', cat: 'furniture', icon: '🪑', price: 450000, color: '#a78bfa' },
+      'toilet': { name: 'Toilet', cat: 'furniture', icon: '🚽', price: 800000, color: '#a78bfa' },
+      'vase': { name: 'Vas Bunga', cat: 'furniture', icon: '🏺', price: 40000, color: '#a78bfa' },
+
+      // Mainan & Hobi (Pink)
+      'teddy bear': { name: 'Boneka', cat: 'accessories', icon: '🧸', price: 65000, color: '#f472b6' },
+      'sports ball': { name: 'Bola Olahraga', cat: 'accessories', icon: '⚽', price: 85000, color: '#f472b6' },
+      'skateboard': { name: 'Skateboard', cat: 'accessories', icon: '🛹', price: 350000, color: '#f472b6' },
+
+      // Kendaraan (Abu)
+      'bicycle': { name: 'Sepeda', cat: 'accessories', icon: '🚲', price: 1200000, color: '#cbd5e1' },
+      'motorcycle': { name: 'Motor', cat: 'accessories', icon: '🏍️', price: 15000000, color: '#cbd5e1' },
+      'car': { name: 'Mobil', cat: 'accessories', icon: '🚗', price: 150000000, color: '#cbd5e1' },
+
+      // Orang
+      'person': { name: 'Orang / Manusia', cat: 'person', icon: '👤', price: 0, color: '#94a3b8' }
     };
 
+    // ==========================================
+    // 2. DOM & STATE
+    // ==========================================
     const video = document.getElementById('webcam');
     const photoPreview = document.getElementById('photoPreview');
     const canvas = document.getElementById('overlay');
     const ctx = canvas.getContext('2d');
     const statusBadge = document.getElementById('status');
     const placeholder = document.getElementById('placeholder');
+    const liveObjCount = document.getElementById('liveObjCount');
+    const btnItemCount = document.getElementById('btnItemCount');
+    const camFacingLabel = document.getElementById('camFacingLabel');
+    const detectedTagsContainer = document.getElementById('detectedTagsContainer');
 
     const startCamBtn = document.getElementById('startCamBtn');
     const fileInput = document.getElementById('fileInput');
+    const uploadLabel = document.getElementById('uploadLabel');
+    const switchCamBtn = document.getElementById('switchCamBtn');
     const captureBtn = document.getElementById('captureBtn');
-    const liveCountSpan = document.getElementById('liveCount');
+    const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const confSlider = document.getElementById('confSlider');
+    const confValueText = document.getElementById('confValueText');
+
     const formContainer = document.getElementById('formContainer');
     const grandTotalEl = document.getElementById('grandTotal');
     const saveTxBtn = document.getElementById('saveTxBtn');
+    const shareBtn = document.getElementById('shareBtn');
     const addManualBtn = document.getElementById('addManualBtn');
     const historyContainer = document.getElementById('historyContainer');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
     let model = null;
     let isLive = false;
+    let currentStream = null;
+    let facingMode = 'environment';
     let currentPredictions = [];
-    let historyList = [];
+    let historyList = JSON.parse(localStorage.getItem('smart_cam_history') || '[]');
+    let minConfidence = 0.35;
+    let enabledCategories = new Set(['electronic', 'food', 'accessories', 'furniture', 'kitchen']);
 
-    // Helper: tampilkan pesan teks (aman, tanpa innerHTML) di area form / riwayat
-    function setMessage(container, text, id) {
-      container.replaceChildren();
-      const p = document.createElement('p');
-      p.className = 'muted';
-      if (id) p.id = id;
-      p.textContent = text;
-      container.appendChild(p);
+    // Audio beep feedback
+    function playBeep(freq = 600, duration = 0.1) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
     }
 
-    function showEmptyForm(text) {
-      setMessage(formContainer, text || 'Belum ada barang. Foto barang untuk input otomatis.', 'emptyFormText');
-    }
-
-    // 1. Load Model AI saat halaman dibuka
+    // ==========================================
+    // 3. LOAD MODEL TFJS COCO-SSD
+    // ==========================================
     async function loadAI() {
       try {
-        model = await cocoSsd.load();
-        statusBadge.innerText = "✅ AI Siap! Pilih Kamera Live atau Foto.";
-        statusBadge.style.background = "#dcfce7";
-        statusBadge.style.color = "#166534";
+        statusBadge.innerHTML = "⏳ Mengunduh AI COCO-SSD...";
+        model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+        statusBadge.innerHTML = "✅ AI Siap! 80 Kategori Aktif.";
+        statusBadge.style.background = "#065f46";
+        statusBadge.style.color = "#a7f3d0";
         startCamBtn.disabled = false;
         fileInput.disabled = false;
+        uploadLabel.classList.remove('disabled');
       } catch (e) {
-        statusBadge.innerText = "❌ Gagal memuat AI: " + e.message;
+        statusBadge.innerHTML = "❌ Gagal memuat AI: " + e.message;
+        statusBadge.style.background = "#7f1d1d";
+        statusBadge.style.color = "#fca5a5";
       }
     }
 
-    // 2. Mode Kamera Live
-    startCamBtn.addEventListener('click', async () => {
+    // ==========================================
+    // 4. PENGATURAN SENSITIVITAS & KATEGORI
+    // ==========================================
+    toggleSettingsBtn.addEventListener('click', () => {
+      settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    confSlider.addEventListener('input', (e) => {
+      minConfidence = parseInt(e.target.value) / 100;
+      confValueText.textContent = e.target.value + '%';
+    });
+
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const cat = chip.dataset.cat;
+        if (cat === 'all') {
+          const makeActive = !chip.classList.contains('active');
+          document.querySelectorAll('.chip').forEach(c => {
+            if (makeActive) {
+              c.classList.add('active');
+              if (c.dataset.cat !== 'all') enabledCategories.add(c.dataset.cat);
+            } else {
+              c.classList.remove('active');
+              enabledCategories.clear();
+            }
+          });
+        } else {
+          chip.classList.toggle('active');
+          if (chip.classList.contains('active')) {
+            enabledCategories.add(cat);
+          } else {
+            enabledCategories.delete(cat);
+            document.querySelector('.chip[data-cat="all"]').classList.remove('active');
+          }
+        }
+      });
+    });
+
+    // ==========================================
+    // 5. KAMERA LIVE & GANTI KAMERA
+    // ==========================================
+    async function startCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+      }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false
         });
-        video.srcObject = stream;
+        video.srcObject = currentStream;
         photoPreview.style.display = 'none';
         placeholder.style.display = 'none';
         video.style.display = 'block';
@@ -284,35 +583,115 @@
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           captureBtn.disabled = false;
-          statusBadge.innerText = "🎥 Kamera Aktif - Arahkan ke barang";
-          detectLiveFrame();
+          switchCamBtn.disabled = false;
+          statusBadge.innerHTML = "🎥 Kamera Aktif — Mendeteksi Sekitar";
+          camFacingLabel.textContent = facingMode === 'environment' ? 'Belakang 🔄' : 'Depan 🔄';
+          detectFrame();
         };
       } catch (err) {
-        alert("Kamera langsung diblokir oleh mode preview browser ini. Gunakan tombol 'Ambil / Pilih Foto' di sebelahnya atau buka file HTML langsung di Chrome!");
+        alert("Gagal mengakses kamera: " + err.message + "\nCoba gunakan tombol 'Pilih / Ambil Foto' di sebelahnya.");
       }
-    });
-
-    async function detectLiveFrame() {
-      if (!isLive || !model) return;
-      // Filter objek "person" agar orang yang memegang barang tidak ikut terhitung sebagai barang
-      const rawPreds = await model.detect(video);
-      currentPredictions = rawPreds.filter(p => p.class !== 'person');
-
-      drawBoxes(currentPredictions);
-      liveCountSpan.innerText = currentPredictions.length;
-
-      requestAnimationFrame(detectLiveFrame);
     }
 
-    // 3. Mode Upload / Foto Kamera Langsung (Fallback)
+    startCamBtn.addEventListener('click', startCamera);
+
+    switchCamBtn.addEventListener('click', () => {
+      facingMode = facingMode === 'environment' ? 'user' : 'environment';
+      startCamera();
+    });
+
+    // ==========================================
+    // 6. LOOP DETEKSI REAL-TIME
+    // ==========================================
+    async function detectFrame() {
+      if (!isLive || !model) return;
+
+      const rawPreds = await model.detect(video, 20, minConfidence);
+      filterAndProcessPredictions(rawPreds);
+      requestAnimationFrame(detectFrame);
+    }
+
+    function filterAndProcessPredictions(rawPreds) {
+      currentPredictions = rawPreds.filter(p => {
+        const itemInfo = COCO_DICTIONARY[p.class];
+        const category = itemInfo?.cat || 'accessories';
+        return enabledCategories.has(category);
+      });
+
+      drawBoundingBoxes(currentPredictions);
+      updateSummaryHUD(currentPredictions);
+    }
+
+    // ==========================================
+    // 7. MENGGAMBAR BOUNDING BOX MODERN (HUD)
+    // ==========================================
+    function drawBoundingBoxes(predictions) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      predictions.forEach(pred => {
+        const [x, y, width, height] = pred.bbox;
+        const info = COCO_DICTIONARY[pred.class] || { name: pred.class, icon: '📦', color: '#38bdf8' };
+        const label = `${info.icon} ${info.name} (${Math.round(pred.score * 100)}%)`;
+
+        // Box border dengan neon glow
+        ctx.strokeStyle = info.color;
+        ctx.lineWidth = Math.max(3, Math.round(canvas.width / 220));
+        ctx.shadowColor = info.color;
+        ctx.shadowBlur = 8;
+        ctx.strokeRect(x, y, width, height);
+        ctx.shadowBlur = 0; // reset shadow
+
+        // Label Tag Background
+        ctx.font = `bold ${Math.max(13, Math.round(canvas.width / 40))}px sans-serif`;
+        const textWidth = ctx.measureText(label).width;
+        const boxHeight = Math.max(22, Math.round(canvas.width / 28));
+
+        ctx.fillStyle = info.color;
+        ctx.fillRect(x, Math.max(0, y - boxHeight), textWidth + 14, boxHeight);
+
+        // Label Text
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(label, x + 7, Math.max(16, y - 6));
+      });
+    }
+
+    // Tampilkan tag rangkuman barang live
+    function updateSummaryHUD(predictions) {
+      liveObjCount.textContent = `${predictions.length} Objek Terdeteksi`;
+      btnItemCount.textContent = predictions.length;
+
+      if (predictions.length === 0) {
+        detectedTagsContainer.innerHTML = '<span class="muted" style="font-size:0.75rem;">Tidak ada barang yang cocok dengan filter saat ini...</span>';
+        return;
+      }
+
+      const counts = {};
+      predictions.forEach(p => {
+        counts[p.class] = (counts[p.class] || 0) + 1;
+      });
+
+      detectedTagsContainer.innerHTML = '';
+      Object.entries(counts).forEach(([rawClass, qty]) => {
+        const info = COCO_DICTIONARY[rawClass] || { name: rawClass, icon: '📦', color: '#93c5fd' };
+        const tag = document.createElement('span');
+        tag.className = 'detected-tag';
+        tag.style.borderColor = info.color;
+        tag.style.color = info.color;
+        tag.textContent = `${info.icon} ${qty}x ${info.name}`;
+        detectedTagsContainer.appendChild(tag);
+      });
+    }
+
+    // ==========================================
+    // 8. MODE UPLOAD / FOTO
+    // ==========================================
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
-      // Matikan live stream jika sedang jalan
       isLive = false;
-      if (video.srcObject) {
-        video.srcObject.getTracks().forEach(t => t.stop());
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
       }
       video.style.display = 'none';
       placeholder.style.display = 'none';
@@ -322,55 +701,30 @@
         photoPreview.onload = async () => {
           canvas.width = photoPreview.naturalWidth;
           canvas.height = photoPreview.naturalHeight;
-          const rawPreds = await model.detect(photoPreview);
-          currentPredictions = rawPreds.filter(p => p.class !== 'person');
-          drawBoxes(currentPredictions);
-          liveCountSpan.innerText = currentPredictions.length;
+          const rawPreds = await model.detect(photoPreview, 25, minConfidence);
+          filterAndProcessPredictions(rawPreds);
           captureBtn.disabled = false;
-          // Langsung masukkan ke form otomatis (aman dipanggil berulang)
-          populateFormFromPredictions();
+          populateForm();
+          playBeep(880, 0.15);
         };
         photoPreview.src = event.target.result;
         photoPreview.style.display = 'block';
       };
       reader.readAsDataURL(file);
-
-      // Reset agar foto yang sama bisa dipilih ulang
       fileInput.value = '';
     });
 
-    // Fungsi Menggambar Kotak & Nama Barang
-    function drawBoxes(predictions) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      predictions.forEach(pred => {
-        const [x, y, width, height] = pred.bbox;
-        const translated = DICTIONARY[pred.class]?.name || pred.class;
-        const label = `${translated} (${Math.round(pred.score * 100)}%)`;
+    // ==========================================
+    // 9. INPUT KE DAFTAR BARANG
+    // ==========================================
+    captureBtn.addEventListener('click', () => {
+      populateForm();
+      playBeep(950, 0.12);
+    });
 
-        ctx.strokeStyle = '#22c55e';
-        ctx.lineWidth = Math.max(3, canvas.width / 180);
-        ctx.strokeRect(x, y, width, height);
-
-        ctx.font = `bold ${Math.max(14, Math.round(canvas.width / 35))}px sans-serif`;
-        const textWidth = ctx.measureText(label).width;
-        const boxHeight = Math.max(24, Math.round(canvas.width / 25));
-
-        ctx.fillStyle = '#22c55e';
-        ctx.fillRect(x, Math.max(0, y - boxHeight), textWidth + 12, boxHeight);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(label, x + 6, Math.max(16, y - 6));
-      });
-    }
-
-    // 4. Klik Tombol Tangkap -> Hitung Jumlah -> Masukkan ke Form
-    captureBtn.addEventListener('click', populateFormFromPredictions);
-
-    // FIX 1 & 2: idempotent. Barang dengan kelas yang sama TIDAK menambah baris baru,
-    // cukup memperbarui jumlahnya (harga yang sudah diedit pengguna tetap dipertahankan).
-    function populateFormFromPredictions() {
+    function populateForm() {
       if (currentPredictions.length === 0) {
-        alert("Belum ada barang yang terdeteksi di layar! Coba dekatkan barang (seperti botol, gelas, buku, HP, buah).");
+        alert("Belum ada barang yang terdeteksi di kamera! Coba arahkan ke benda lain atau turunkan ambang sensitivitas.");
         return;
       }
 
@@ -386,7 +740,7 @@
         if (existing) {
           existing.querySelector('.in-qty').value = qty;
         } else {
-          const info = DICTIONARY[rawClass] || { name: rawClass, price: 10000 };
+          const info = COCO_DICTIONARY[rawClass] || { name: rawClass, price: 10000 };
           addItemRow(info.name, qty, info.price, rawClass);
         }
       });
@@ -394,7 +748,6 @@
       calculateTotal();
     }
 
-    // FIX 3: baris dibuat lewat DOM API, nilai diisi lewat .value (bukan innerHTML)
     function addItemRow(name = '', qty = 1, price = 0, cls = '') {
       const emptyText = document.getElementById('emptyFormText');
       if (emptyText) emptyText.remove();
@@ -413,20 +766,18 @@
       inQty.type = 'number';
       inQty.className = 'in-qty';
       inQty.min = '1';
-      inQty.title = 'Jumlah Barang';
       inQty.value = qty;
 
       const inPrice = document.createElement('input');
       inPrice.type = 'number';
       inPrice.className = 'in-price';
       inPrice.min = '0';
-      inPrice.step = '500';
+      inPrice.step = '1000';
       inPrice.placeholder = 'Harga (Rp)';
       inPrice.value = price;
 
       const btnDel = document.createElement('button');
       btnDel.className = 'btn-del';
-      btnDel.title = 'Hapus';
       btnDel.textContent = '✕';
 
       inQty.addEventListener('input', calculateTotal);
@@ -444,7 +795,10 @@
 
     addManualBtn.addEventListener('click', () => addItemRow('', 1, 0));
 
-    // Hitung Total Otomatis
+    function showEmptyForm(text = 'Belum ada barang di daftar. Tangkap dari kamera atau tambah manual.') {
+      formContainer.innerHTML = `<p class="muted" id="emptyFormText" style="padding:12px 0;">${text}</p>`;
+    }
+
     function calculateTotal() {
       const rows = formContainer.querySelectorAll('.item-row');
       let total = 0;
@@ -453,12 +807,15 @@
         const p = parseFloat(r.querySelector('.in-price').value) || 0;
         total += q * p;
       });
-      grandTotalEl.innerText = 'Rp ' + total.toLocaleString('id-ID');
+      grandTotalEl.textContent = 'Rp ' + total.toLocaleString('id-ID');
       saveTxBtn.disabled = rows.length === 0;
+      shareBtn.disabled = rows.length === 0;
       return total;
     }
 
-    // 5. Simpan ke Riwayat Keuangan
+    // ==========================================
+    // 10. SIMPAN & EKSPOR RIWAYAT
+    // ==========================================
     saveTxBtn.addEventListener('click', () => {
       const rows = formContainer.querySelectorAll('.item-row');
       if (rows.length === 0) return;
@@ -473,45 +830,74 @@
         items.push(`${qty}x ${name}`);
       });
 
-      historyList.unshift({
+      const newRecord = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
         time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
         summary: items.join(', '),
         total: total
-      });
-      renderHistory();
+      };
 
-      // Reset Form
-      showEmptyForm('Transaksi berhasil disimpan! Foto barang lagi untuk menambah.');
+      historyList.unshift(newRecord);
+      localStorage.setItem('smart_cam_history', JSON.stringify(historyList));
+      renderHistory();
+      playBeep(1200, 0.18);
+
+      showEmptyForm('✅ Tersimpan! Pindai barang berikutnya.');
       calculateTotal();
     });
 
-    // FIX 3: riwayat dirender dengan textContent, bukan innerHTML
+    shareBtn.addEventListener('click', () => {
+      const rows = formContainer.querySelectorAll('.item-row');
+      const lines = ['*📸 REKAP BARANG TERDETEKSI*'];
+      let total = 0;
+      rows.forEach(r => {
+        const name = r.querySelector('.in-name').value || 'Barang';
+        const qty = r.querySelector('.in-qty').value || '1';
+        const price = parseInt(r.querySelector('.in-price').value) || 0;
+        const sub = qty * price;
+        total += sub;
+        lines.push(`• ${qty}x ${name} - Rp ${sub.toLocaleString('id-ID')}`);
+      });
+      lines.push(`\n*Total Estimasi: Rp ${total.toLocaleString('id-ID')}*`);
+      const text = lines.join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert("✅ Rekap berhasil disalin ke clipboard! Siap ditempel di WhatsApp atau catatan.");
+      }).catch(() => {
+        alert(text);
+      });
+    });
+
     function renderHistory() {
-      historyContainer.replaceChildren();
+      historyContainer.innerHTML = '';
       if (historyList.length === 0) {
-        setMessage(historyContainer, 'Belum ada riwayat tersimpan.');
+        historyContainer.innerHTML = '<p class="muted">Belum ada riwayat tersimpan.</p>';
         return;
       }
       historyList.forEach(tx => {
         const div = document.createElement('div');
         div.className = 'history-item';
-
-        const left = document.createElement('div');
-        const strong = document.createElement('strong');
-        strong.textContent = tx.summary;
-        const time = document.createElement('div');
-        time.style.cssText = 'font-size:0.75rem; color:#64748b;';
-        time.textContent = 'Jam ' + tx.time;
-        left.append(strong, time);
-
-        const right = document.createElement('div');
-        right.style.cssText = 'font-weight:700; color:var(--success);';
-        right.textContent = 'Rp ' + tx.total.toLocaleString('id-ID');
-
-        div.append(left, right);
+        div.innerHTML = `
+          <div>
+            <strong>${tx.summary}</strong>
+            <div style="font-size:0.75rem; color:#64748b;">${tx.date || ''} • Jam ${tx.time}</div>
+          </div>
+          <div style="font-weight:700; color:#34d399; font-size:0.95rem;">
+            Rp ${tx.total.toLocaleString('id-ID')}
+          </div>
+        `;
         historyContainer.appendChild(div);
       });
     }
+
+    clearHistoryBtn.addEventListener('click', () => {
+      if (confirm('Hapus semua riwayat catatan?')) {
+        historyList = [];
+        localStorage.removeItem('smart_cam_history');
+        renderHistory();
+      }
+    });
 
     showEmptyForm();
     renderHistory();
